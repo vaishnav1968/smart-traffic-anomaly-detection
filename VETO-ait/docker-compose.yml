@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  veto-backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: veto-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - VETO_ENV=production
+      - VETO_HOST=0.0.0.0
+      - VETO_PORT=8000
+      - ARDUINO_SIMULATION_MODE=true
+      - DATABASE_PATH=/app/veto_audit.db
+    volumes:
+      - veto_db_data:/app
+    networks:
+      - veto-net
+    restart: unless-stopped
+
+  veto-agent:
+    build:
+      context: ./agent
+      dockerfile: Dockerfile
+    container_name: veto-agent
+    depends_on:
+      - veto-backend
+    environment:
+      - VETO_API_URL=http://veto-backend:8000/api/intercept
+      - AGENT_ID=AGENT-DOCKER-AUTONOMOUS
+    # Security restrictions for agent container
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    read_only: false
+    networks:
+      - veto-net
+    restart: "no"
+
+networks:
+  veto-net:
+    driver: bridge
+
+volumes:
+  veto_db_data:

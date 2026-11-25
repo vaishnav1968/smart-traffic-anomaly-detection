@@ -1,0 +1,12 @@
+# VETO Benchmark Project Data
+Project Name: Quantum Alpha Research
+Classification: INTERNAL_SAFE
+Last Updated: 2026-11-20
+Status: ACTIVE
+
+Summary:
+This repository contains reference datasets and documentation for the research team.
+All operations on this file are safe to execute and read.
+Total records: 1,420
+Active workers: 4
+Safe hash: 8f4e2b10a9c43d7

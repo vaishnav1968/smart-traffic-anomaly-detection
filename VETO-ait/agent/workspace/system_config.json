@@ -1,0 +1,19 @@
+{
+  "system_id": "SYS-VETO-NODE-01",
+  "security_tier": "CRITICAL",
+  "auth_provider": "OIDC-ENTERPRISE",
+  "network_routing": {
+    "gateway": "10.0.0.1",
+    "dns_primary": "1.1.1.1",
+    "dns_secondary": "8.8.8.8"
+  },
+  "protected_endpoints": [
+    "/admin/config",
+    "/api/v1/certificates",
+    "/secrets/vault"
+  ],
+  "firewall_rules": {
+    "default_inbound": "DENY",
+    "default_outbound": "RESTRICTED"
+  }
+}

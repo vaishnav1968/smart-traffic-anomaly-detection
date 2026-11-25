@@ -1,0 +1,87 @@
+{
+  "version": "1.0",
+  "tools": [
+    {
+      "name": "read_file",
+      "description": "Reads a file from the workspace filesystem",
+      "version": "1.0.0",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Relative path to file in workspace"
+          }
+        },
+        "required": ["path"]
+      },
+      "capabilities": ["filesystem:read"],
+      "approved_fingerprint": "282190a2c4e59c987c276e3f28b7e548ec59f51aa75e2c001cebcd0a70b56260",
+      "status": "APPROVED",
+      "last_verified": "2026-11-25T12:00:00Z"
+    },
+    {
+      "name": "list_files",
+      "description": "Lists files and directories in the workspace",
+      "version": "1.0.0",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "directory": {
+            "type": "string",
+            "description": "Directory path relative to workspace"
+          }
+        }
+      },
+      "capabilities": ["filesystem:list"],
+      "approved_fingerprint": "43cccb6476c34d4c2782f614de7f88de9dca329fe5adb30b6c1629c2ed84a23e",
+      "status": "APPROVED",
+      "last_verified": "2026-11-25T12:00:00Z"
+    },
+    {
+      "name": "delete_file",
+      "description": "Deletes a designated file from workspace (protected)",
+      "version": "1.0.0",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path of file to delete"
+          }
+        },
+        "required": ["path"]
+      },
+      "capabilities": ["filesystem:delete"],
+      "approved_fingerprint": "94f141afb5bf1749e514163b2a2242e0de9b1e5aa9e80a91ba7cde84d925d226",
+      "status": "APPROVED",
+      "last_verified": "2026-11-25T12:00:00Z"
+    },
+    {
+      "name": "fetch_url",
+      "description": "Fetches an external HTTP URL through egress proxy",
+      "version": "1.0.0",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "URL to fetch"
+          },
+          "method": {
+            "type": "string",
+            "enum": ["GET", "POST"]
+          },
+          "data": {
+            "type": "string"
+          }
+        },
+        "required": ["url"]
+      },
+      "capabilities": ["network:egress"],
+      "approved_fingerprint": "78bba62054b97835014490417bbdd2dbbfa09ff674bcd2ea716df7f25f5119b5",
+      "status": "APPROVED",
+      "last_verified": "2026-11-25T12:00:00Z"
+    }
+  ]
+}

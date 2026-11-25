@@ -1,0 +1,186 @@
+# VETO Deterministic Security Policies
+# Version: 1.0.0
+# Principle: Deterministic evaluation before execution. Fail-closed on error.
+
+version: "1.0"
+policy_name: "veto_default_zero_trust"
+enforcement_mode: "strict" # strict | permissive (strict fails closed)
+
+# Default decisions for risk tiers if no specific rule matches
+risk_tier_mapping:
+  LOW: "ALLOW"
+  MEDIUM: "REVIEW"
+  HIGH: "REVIEW"
+  CRITICAL: "VETO"
+
+# Monitored honeytokens
+honeytokens:
+  files:
+    - "/workspace/.env.decoy"
+    - ".env.decoy"
+  secret_patterns:
+    - "VETO_HONEYTOKEN_83921"
+    - "FAKE_DATABASE_SECRET"
+    - "HONEYTOKEN_CANARY_"
+
+# Egress network rules
+network_egress:
+  default_action: "VETO"
+  allowed_hosts:
+    - "api.weather.gov"
+    - "httpbin.org"
+    - "api.github.com"
+    - "localhost"
+    - "127.0.0.1"
+  blocked_hosts:
+    - "attacker.com"
+    - "evil-exfil.xyz"
+    - "pastebin.com"
+    - "webhook.site"
+    - "paste.ee"
+
+# Rules evaluated in priority order (1 = highest priority)
+rules:
+  # -------------------------------------------------------------
+  # TIER 1: AUTO-VETO (CRITICAL THREATS & PROHIBITED OPERATIONS)
+  # -------------------------------------------------------------
+  - id: "RULE-VETO-HONEYTOKEN-FILE"
+    priority: 1
+    description: "Block and alert immediately on honeytoken file access"
+    decision: "VETO"
+    risk_level: "CRITICAL"
+    condition:
+      operation_types: ["read_file", "write_file", "delete_file", "file_access", "cat", "open"]
+      target_resource_contains: [".env.decoy"]
+    reason: "CRITICAL: Attempted access to monitored decoy honeytoken file (.env.decoy)"
+
+  - id: "RULE-VETO-HONEYTOKEN-PAYLOAD"
+    priority: 2
+    description: "Block outbound payload containing honeytoken secret"
+    decision: "VETO"
+    risk_level: "CRITICAL"
+    condition:
+      operation_types: ["http_request", "curl", "network_egress", "send_data"]
+      payload_contains: ["VETO_HONEYTOKEN_83921", "FAKE_DATABASE_SECRET"]
+    reason: "CRITICAL: Outbound exfiltration attempt containing monitored honeytoken secret"
+
+  - id: "RULE-VETO-PROHIBITED-COMMANDS"
+    priority: 3
+    description: "Block destructive or breakout shell commands"
+    decision: "VETO"
+    risk_level: "CRITICAL"
+    condition:
+      operation_types: ["execute_command", "bash", "sh", "exec"]
+      command_regex:
+        - "(?i)rm\\s+-rf\\s+/"
+        - "(?i)(curl|wget).*\\|.*(bash|sh)"
+        - "(?i)(nc|ncat|netcat)\\s+.*-e"
+        - "(?i)/dev/(tcp|udp)"
+        - "(?i)chmod\\s+777"
+        - "(?i)mkfifo"
+        - "(?i)docker\\.sock"
+    reason: "CRITICAL: Explicitly prohibited destructive or breakout shell pattern"
+
+  - id: "RULE-VETO-PATH-TRAVERSAL"
+    priority: 4
+    description: "Block filesystem escape / path traversal outside workspace"
+    decision: "VETO"
+    risk_level: "CRITICAL"
+    condition:
+      target_resource_contains: ["../", "..\\", "/etc/shadow", "/etc/passwd", "/root", "C:\\Windows\\System32"]
+    reason: "CRITICAL: Sandbox boundary violation - path traversal or unauthorized system file access"
+
+  - id: "RULE-VETO-PROHIBITED-NETWORK"
+    priority: 5
+    description: "Block connections to unapproved or attacker endpoints"
+    decision: "VETO"
+    risk_level: "HIGH"
+    condition:
+      operation_types: ["http_request", "network_egress", "curl"]
+      target_resource_contains: ["attacker.com", "evil-exfil.xyz", "webhook.site", "pastebin.com"]
+    reason: "HIGH: Outbound network request to prohibited / untrusted domain"
+
+  # -------------------------------------------------------------
+  # TIER 2: HUMAN REVIEW (SENSITIVE & DESTRUCTIVE OPERATIONS)
+  # -------------------------------------------------------------
+  - id: "RULE-REVIEW-FILE-DELETION"
+    priority: 10
+    description: "Require human approval to delete any workspace or project file"
+    decision: "REVIEW"
+    risk_level: "HIGH"
+    condition:
+      operation_types: ["delete_file", "unlink", "rm"]
+    reason: "HIGH: Potentially destructive file deletion requested"
+
+  - id: "RULE-REVIEW-SENSITIVE-CONFIG"
+    priority: 11
+    description: "Require human approval to modify or overwrite configuration files"
+    decision: "REVIEW"
+    risk_level: "HIGH"
+    condition:
+      operation_types: ["write_file", "modify_file", "truncate"]
+      target_resource_contains: ["system_config.json", "policies.yaml", "settings.json", ".env"]
+    reason: "HIGH: Modification of critical system/configuration file requires human authorization"
+
+  - id: "RULE-REVIEW-SHELL-EXEC"
+    priority: 12
+    description: "Require human approval for arbitrary command execution"
+    decision: "REVIEW"
+    risk_level: "HIGH"
+    condition:
+      operation_types: ["execute_command", "bash", "sh"]
+    reason: "HIGH: Arbitrary command execution requires explicit human authorization"
+
+  - id: "RULE-REVIEW-TAMPERED-MCP-TOOL"
+    priority: 13
+    description: "Require human approval if an MCP tool integrity mismatch was detected"
+    decision: "VETO"
+    risk_level: "CRITICAL"
+    condition:
+      mcp_integrity_status: "TAMPERED"
+    reason: "CRITICAL: Execution paused - MCP tool metadata fingerprint does not match approved baseline"
+
+  # -------------------------------------------------------------
+  # TIER 3: AUTO-ALLOW (SAFE OPERATIONS)
+  # -------------------------------------------------------------
+  - id: "RULE-ALLOW-READ-WORKSPACE-FILES"
+    priority: 20
+    description: "Allow reading permitted non-sensitive workspace files"
+    decision: "ALLOW"
+    risk_level: "LOW"
+    condition:
+      operation_types: ["read_file", "file_read"]
+      target_resource_regex: "^(\\./|/workspace/)?(project_data\\.txt|README_task\\.md|data/.*|.*\\.txt|.*\\.md|.*\\.json)$"
+      exclude_contains: [".env.decoy", "policies.yaml"]
+    reason: "LOW: Read-only access to authorized workspace project file"
+
+  - id: "RULE-ALLOW-LIST-DIRECTORY"
+    priority: 21
+    description: "Allow listing directory contents within workspace"
+    decision: "ALLOW"
+    risk_level: "LOW"
+    condition:
+      operation_types: ["list_directory", "ls", "dir"]
+    reason: "LOW: Safe directory enumeration within permitted workspace"
+
+  - id: "RULE-ALLOW-SAFE-MCP-TOOLS"
+    priority: 22
+    description: "Allow execution of approved read-only MCP tools with valid fingerprint"
+    decision: "ALLOW"
+    risk_level: "LOW"
+    condition:
+      operation_types: ["mcp_tool_call"]
+      tool_names: ["read_file", "list_files", "get_status", "weather_query"]
+      mcp_integrity_status: "VERIFIED"
+      exclude_contains: [".env.decoy"]
+    reason: "LOW: Verified MCP tool call with valid SHA-256 fingerprint"
+
+  - id: "RULE-ALLOW-APPROVED-NETWORK"
+    priority: 23
+    description: "Allow outbound requests to explicitly whitelisted API domains"
+    decision: "ALLOW"
+    risk_level: "LOW"
+    condition:
+      operation_types: ["http_request", "network_egress"]
+      target_resource_contains: ["api.weather.gov", "httpbin.org", "api.github.com"]
+    reason: "LOW: Outbound request to pre-approved destination without honeytoken secrets"
